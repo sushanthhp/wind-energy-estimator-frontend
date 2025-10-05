@@ -252,7 +252,9 @@ async function estimate() {
 // --- LOCATION HANDLING ---
 async function resolveUrlAndSetMarker(url, input, index) {
   const suggestionsList = document.getElementById(`suggestions-${index}`);
+  const errorContainer = document.getElementById('error-container');
   suggestionsList.innerHTML = '<li>Resolving URL...</li>';
+  errorContainer.textContent = ''; // Clear previous errors
 
   const gmapsRegex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
   const match = url.match(gmapsRegex);
@@ -279,14 +281,20 @@ async function resolveUrlAndSetMarker(url, input, index) {
     const coords = await response.json();
     map.setView([coords.latitude, coords.longitude], 13);
     setMarker(index, coords.latitude, coords.longitude);
-    input.value = `📍 Coordinates Set from URL`;
+    
+    // --- CHANGE 1: Display the found name for better UX ---
+    const displayName = coords.found_name ? `📍 ${coords.found_name}` : `📍 Coordinates Set from URL`;
+    input.value = displayName;
+
     suggestionsList.innerHTML = '';
   } catch (error) {
     console.error("URL resolution error:", error);
-    suggestionsList.innerHTML = `<li>Error: ${error.message}</li>`;
+    
+    // --- CHANGE 2: Display the error in the main error container ---
+    errorContainer.textContent = `⚠️ Error resolving URL: ${error.message}`;
+    suggestionsList.innerHTML = ''; // Clear the "Resolving..." message
   }
 }
-
 function searchLocations(index) {
   const input = document.getElementById(`search-${index}`);
   const val = input.value;
