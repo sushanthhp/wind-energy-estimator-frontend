@@ -250,23 +250,13 @@ async function estimate() {
 }
 
 // --- LOCATION HANDLING ---
+// --- REPLACE this function in your <script> tag ---
+
 async function resolveUrlAndSetMarker(url, input, index) {
   const suggestionsList = document.getElementById(`suggestions-${index}`);
   const errorContainer = document.getElementById('error-container');
   suggestionsList.innerHTML = '<li>Resolving URL...</li>';
-  errorContainer.textContent = ''; // Clear previous errors
-
-  const gmapsRegex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
-  const match = url.match(gmapsRegex);
-  if (match) {
-    const lat = parseFloat(match[1]);
-    const lon = parseFloat(match[2]);
-    map.setView([lat, lon], 13);
-    setMarker(index, lat, lon);
-    input.value = `📍 Coordinates Set from URL`;
-    suggestionsList.innerHTML = '';
-    return;
-  }
+  errorContainer.textContent = ''; // Clear previous messages
 
   try {
     const response = await fetch(`${API_BASE}/resolve-gmaps-url`, {
@@ -274,28 +264,42 @@ async function resolveUrlAndSetMarker(url, input, index) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: url })
     });
+
     if (!response.ok) {
       const err = await response.json();
       throw new Error(err.detail || 'Could not resolve URL');
     }
+
     const coords = await response.json();
-    map.setView([coords.latitude, coords.longitude], 13);
-    setMarker(index, coords.latitude, coords.longitude);
-    
-    // --- CHANGE 1: Display the found name for better UX ---
-    const displayName = coords.found_name ? `📍 ${coords.found_name}` : `📍 Coordinates Set from URL`;
-    input.value = displayName;
+
+    // --- NEW LOGIC TO HANDLE AREA VS. PRECISE POINT ---
+    if (coords.isAreaResult) {
+      // This is an AREA result. Pan the map and prompt the user.
+      map.setView([coords.latitude, coords.longitude], 14); // Zoom in a bit more
+      
+      // Do NOT set a marker.
+      
+      // Update the input field to show the area found.
+      input.value = `📍 Area: ${coords.found_name}`;
+
+      // Display a helpful prompt to the user.
+      errorContainer.innerHTML = `✅ Map centered on the right area. <br><b>Now, please click the exact location on the map to place your pin.</b>`;
+      
+    } else {
+      // This is a PRECISE result (from a URL with coordinates). Set the marker automatically.
+      map.setView([coords.latitude, coords.longitude], 13);
+      setMarker(index, coords.latitude, coords.longitude);
+      input.value = `📍 Coordinates Set Precisely from URL`;
+    }
 
     suggestionsList.innerHTML = '';
   } catch (error) {
     console.error("URL resolution error:", error);
-    
-    // --- CHANGE 2: Display the error in the main error container ---
     errorContainer.textContent = `⚠️ Error resolving URL: ${error.message}`;
-    suggestionsList.innerHTML = ''; // Clear the "Resolving..." message
+    suggestionsList.innerHTML = '';
   }
 }
-function searchLocations(index) {
+  function searchLocations(index) {
   const input = document.getElementById(`search-${index}`);
   const val = input.value;
   const list = document.getElementById(`suggestions-${index}`);
