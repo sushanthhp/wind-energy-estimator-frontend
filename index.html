@@ -299,7 +299,9 @@ async function resolveUrlAndSetMarker(url, input, index) {
     suggestionsList.innerHTML = '';
   }
 }
-  function searchLocations(index) {
+ // --- REPLACE this function in your <script> tag ---
+
+function searchLocations(index) {
   const input = document.getElementById(`search-${index}`);
   const val = input.value;
   const list = document.getElementById(`suggestions-${index}`);
@@ -313,20 +315,34 @@ async function resolveUrlAndSetMarker(url, input, index) {
   }
   list.innerHTML = '<li>Searching...</li>';
 
+  // This fetch call still points to our backend, which is correct.
   fetch(`${API_BASE}/search-location?name=${val}`)
     .then(res => res.json())
     .then(data => {
       list.innerHTML = '';
-      if (data && data.results && data.results.length > 0) {
-        data.results.forEach(loc => {
+      
+      // --- THIS LOGIC IS UPDATED FOR NOMINATIM'S RESPONSE FORMAT ---
+      
+      // Nominatim returns a direct array, not an object with a "results" key.
+      if (data && data.length > 0) { 
+        data.forEach(loc => {
           const li = document.createElement('li');
-          const displayName = [loc.name, loc.admin1, loc.country].filter(Boolean).join(', ');
-          li.textContent = displayName;
+          
+          // Nominatim provides a clean, full "display_name". This is much better!
+          li.textContent = loc.display_name; 
+          
           li.onclick = () => {
-            input.value = displayName;
+            input.value = loc.display_name;
             list.innerHTML = '';
-            map.setView([loc.latitude, loc.longitude], 10);
-            setMarker(index, loc.latitude, loc.longitude);
+            
+            // Nominatim uses "lat" and "lon" instead of "latitude" and "longitude".
+            const lat = parseFloat(loc.lat);
+            const lon = parseFloat(loc.lon);
+            
+            map.setView([lat, lon], 13);
+            setMarker(index, lat, lon);
+            
+            // This part for focusing the next input remains the same.
             const allInputs = Array.from(document.querySelectorAll('.focusable-input'));
             const currentIndex = allInputs.indexOf(input);
             if (currentIndex + 1 < allInputs.length) { allInputs[currentIndex + 1].focus(); }
