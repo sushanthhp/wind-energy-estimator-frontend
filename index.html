@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wind Energy Estimator</title>
+  <link rel="icon" type="image/x-icon" href="https://raw.githubusercontent.com/google/material-design-icons/master/png/action/wind_power/materialicons/48dp/1x/baseline_wind_power_black_48dp.png">
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary-color: #007bff;
+      --primary-hover: #0069d9;
+      --secondary-color: #6c757d;
+      --light-gray: #f8f9fa;
+      --medium-gray: #e9ecef;
+      --dark-gray: #6c757d;
+      --text-color: #212529;
+      --white-color: #ffffff;
+      --error-color: #dc3545;
+      --success-color: #28a745;
+      --border-radius: 12px;
+      --box-shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Poppins', 'Segoe UI', sans-serif;
+      background-color: var(--light-gray);
+      color: var(--text-color);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 2rem; }
+    h1 { font-size: 2.5rem; font-weight: 600; }
+    .card {
+      background: var(--white-color);
+      padding: 1.5rem 2rem;
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      margin-bottom: 1.5rem;
+    }
+    .mode-buttons { display: flex; gap: 0.5rem; background-color: var(--medium-gray); border-radius: var(--border-radius); padding: 0.5rem; }
+    .mode-buttons button { flex: 1; padding: 0.75rem 1rem; font-size: 1rem; font-weight: 500; border-radius: 9px; border: none; background-color: transparent; color: var(--dark-gray); cursor: pointer; transition: all 0.2s ease-in-out; }
+    .mode-buttons button.active { background-color: var(--white-color); color: var(--primary-color); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); }
+    .input-grid { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .input-group { flex: 1 1 45%; min-width: 280px; position: relative; }
+    label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--dark-gray); }
+    input[type="text"], input[type="number"] { width: 100%; padding: 0.75rem 1rem; font-size: 1rem; border: 1px solid #ced4da; border-radius: 8px; transition: border-color 0.2s, box-shadow 0.2s; }
+    input[type="text"]:focus, input[type="number"]:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25); }
+    #map { height: 400px; border-radius: var(--border-radius); margin-top: 1rem; }
+    .action-button { width: 100%; padding: 1rem; font-size: 1.1rem; font-weight: 600; color: var(--white-color); border: none; border-radius: 8px; cursor: pointer; transition: background-color 0.2s; }
+    #estimate-btn { background-color: var(--primary-color); position: relative; }
+    #estimate-btn:hover { background-color: var(--primary-hover); }
+    #estimate-btn:disabled { background-color: var(--secondary-color); cursor: not-allowed; }
+    #add-location-btn { background-color: var(--white-color); color: var(--secondary-color); border: 1px solid var(--secondary-color); margin-top: 1rem; }
+    #add-location-btn:hover { background-color: var(--light-gray); }
+    #output-card h3 { margin-bottom: 1rem; font-weight: 600; }
+    ul.suggestions { width: 100%; list-style: none; background: var(--white-color); border: 1px solid #ccc; border-radius: 8px; max-height: 150px; overflow-y: auto; position: absolute; top: 100%; left: 0; z-index: 1000; box-shadow: var(--box-shadow); }
+    ul.suggestions li { padding: 0.75rem 1rem; cursor: pointer; }
+    ul.suggestions li:hover { background-color: var(--medium-gray); }
+    .hidden { display: none; }
+    #output-container { min-height: 50px; }
+    .results-grid { display: flex; gap: 2rem; flex-wrap: wrap; }
+    .result-col { flex: 1; min-width: 280px; }
+    .result-col h4 { font-weight: 600; color: var(--primary-color); margin-bottom: 1rem; border-bottom: 2px solid var(--medium-gray); padding-bottom: 0.5rem; }
+    .result-item { display: flex; justify-content: space-between; padding: 0.7rem 0; border-bottom: 1px solid var(--medium-gray); font-size: 0.95rem; }
+    .result-item:last-child { border-bottom: none; }
+    .result-key { color: var(--dark-gray); }
+    .result-value { font-weight: 500; color: var(--text-color); }
+    .weather-group { margin-left: 1.5rem; font-size: 0.9rem;}
+    .search-wrapper { display: flex; gap: 0.5rem; }
+    .search-wrapper input { flex-grow: 1; }
+    .search-wrapper button { padding: 0 1rem; border: none; background-color: var(--primary-color); color: var(--white-color); border-radius: 8px; cursor: pointer; font-weight: 500; transition: background-color 0.2s; }
+    .search-wrapper button:hover { background-color: var(--primary-hover); }
+    
+    .comparison-summary { margin-top: 2rem; border-top: 2px solid var(--medium-gray); padding-top: 1.5rem; }
+    .comparison-summary h4 { margin-bottom: 1rem; }
+    .summary-item { display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem; padding: 0.5rem 0; }
+    .improvement { color: var(--success-color); font-weight: 600; }
+    .decrement { color: var(--error-color); font-weight: 600; }
+
+    .loader {
+      display: inline-block;
+      width: 20px; height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-message { color: var(--error-color); font-size: 0.9rem; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header><h1>🌬️ Wind Energy Estimator</h1></header>
+    <div class="card">
+      <div class="mode-buttons">
+        <button id="single-btn" onclick="setMode('single')">Single Location</button>
+        <button id="compare-btn" onclick="setMode('compare')">Compare Locations</button>
+      </div>
+    </div>
+    <div class="card">
+      <div id="inputs-container"></div>
+      <div id="error-container" class="error-message"></div>
+      <div id="map-container"><div id="map"></div></div>
+      <div id="add-location-btn-container" class="hidden">
+        <button id="add-location-btn" class="action-button" onclick="renderCompareStep2()">Add Next Location</button>
+      </div>
+    </div>
+    <div class="card">
+      <button id="estimate-btn" class="action-button" onclick="estimate()">
+        <span id="btn-text">Estimate Power</span>
+      </button>
+    </div>
+    <div id="output-card" class="card">
+      <h3 id="results-title">🔎 Output</h3>
+      <div id="output-container">Enter location details and click "Estimate" to see results.</div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+// --- CONFIGURATION ---
+// Change this to your deployed backend URL. For local testing, use http://127.0.0.1:8000
+const API_BASE = "https://your-backend.onrender.com"; 
+// To test locally, you can change the line above to:
+// const API_BASE = "http://127.0.0.1:8000";
+
+// --- GLOBAL STATE ---
+let map, markers = [], currentMode = 'single', locationData = {}, compareStep = 1;
+let abortController;
+
+// --- INITIALIZATION ---
+window.addEventListener('DOMContentLoaded', () => {
+  setMode('single');
+});
+
+// --- CORE LOGIC ---
+function setMode(mode) {
+  if (abortController) {
+    abortController.abort();
+  }
+  currentMode = mode;
+  locationData = {};
+  document.getElementById('single-btn').classList.toggle('active', mode === 'single');
+  document.getElementById('compare-btn').classList.toggle('active', mode === 'compare');
+  document.getElementById('add-location-btn-container').classList.add('hidden');
+  document.getElementById('inputs-container').innerHTML = '';
+  document.getElementById('results-title').innerHTML = '🔎 Output';
+  document.getElementById('output-container').innerHTML = 'Enter location details and click "Estimate" to see results.';
+  document.getElementById('error-container').textContent = '';
+  
+  if (mode === 'single') {
+    renderSingleMode();
+  } else {
+    compareStep = 1; 
+    renderCompareStep1();
+  }
+  initMap();
+}
+
+async function estimate() {
+  const outputContainer = document.getElementById('output-container');
+  const outputCard = document.getElementById('output-card');
+  const errorContainer = document.getElementById('error-container');
+  errorContainer.textContent = ''; 
+  
+  outputContainer.innerHTML = 'Estimating...';
+  toggleLoading(true);
+  
+  abortController = new AbortController();
+
+  let payload = [];
+  if (currentMode === 'single') {
+    const validationError = saveLocationData(0);
+    if (validationError) {
+      errorContainer.textContent = `⚠️ ${validationError}`;
+      toggleLoading(false);
+      return;
+    }
+    payload.push({
+      latitude: markers[0].lat,
+      longitude: markers[0].lon,
+      blade_radius: locationData[0].blade,
+      turbine_height: locationData[0].height
+    });
+  } else { 
+    if (!locationData[0] || !markers[0]) {
+      errorContainer.textContent = '⚠️ Data for Location 1 is missing.';
+      toggleLoading(false);
+      return;
+    }
+    payload.push({
+      latitude: markers[0].lat,
+      longitude: markers[0].lon,
+      blade_radius: locationData[0].blade,
+      turbine_height: locationData[0].height
+    });
+
+    const validationError = saveLocationData(1);
+    if (validationError) {
+      errorContainer.textContent = `⚠️ For Location 2: ${validationError}`;
+      toggleLoading(false);
+      return;
+    }
+    payload.push({
+      latitude: markers[1].lat,
+      longitude: markers[1].lon,
+      blade_radius: locationData[1].blade,
+      turbine_height: locationData[1].height
+    });
+  }
+
+  const endpoint = currentMode === 'compare' ? '/compare' : '/estimate';
+  const body = currentMode === 'compare' ? { locations: payload } : payload[0];
+  
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: abortController.signal
+    });
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || `HTTP error! Status: ${response.status}`);
+    }
+    const result = await response.json();
+    displayResults(result);
+    outputCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log('Fetch request aborted.');
+      outputContainer.innerHTML = 'Estimation was canceled.';
+    } else {
+      outputContainer.textContent = `An error occurred: ${error.message}`;
+    }
+  } finally {
+    toggleLoading(false);
+  }
+}
+
+// --- LOCATION HANDLING ---
+async function resolveUrlAndSetMarker(url, input, index) {
+  const suggestionsList = document.getElementById(`suggestions-${index}`);
+  suggestionsList.innerHTML = '<li>Resolving URL...</li>';
+
+  const gmapsRegex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
+  const match = url.match(gmapsRegex);
+  if (match) {
+    const lat = parseFloat(match[1]);
+    const lon = parseFloat(match[2]);
+    map.setView([lat, lon], 13);
+    setMarker(index, lat, lon);
+    input.value = `📍 Coordinates Set from URL`;
+    suggestionsList.innerHTML = '';
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/resolve-gmaps-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url })
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.detail || 'Could not resolve URL');
+    }
+    const coords = await response.json();
+    map.setView([coords.latitude, coords.longitude], 13);
+    setMarker(index, coords.latitude, coords.longitude);
+    input.value = `📍 Coordinates Set from URL`;
+    suggestionsList.innerHTML = '';
+  } catch (error) {
+    console.error("URL resolution error:", error);
+    suggestionsList.innerHTML = `<li>Error: ${error.message}</li>`;
+  }
+}
+
+function searchLocations(index) {
+  const input = document.getElementById(`search-${index}`);
+  const val = input.value;
+  const list = document.getElementById(`suggestions-${index}`);
+  
+  if (val.startsWith('http') || val.startsWith('📍')) return; 
+
+  if (!val || val.length < 3) { 
+    list.innerHTML = '<li>Please enter at least 3 characters.</li>';
+    setTimeout(() => { list.innerHTML = ''; }, 3000);
+    return;
+  }
+  list.innerHTML = '<li>Searching...</li>';
+
+  fetch(`${API_BASE}/search-location?name=${val}`)
+    .then(res => res.json())
+    .then(data => {
+      list.innerHTML = '';
+      if (data && data.results && data.results.length > 0) {
+        data.results.forEach(loc => {
+          const li = document.createElement('li');
+          const displayName = [loc.name, loc.admin1, loc.country].filter(Boolean).join(', ');
+          li.textContent = displayName;
+          li.onclick = () => {
+            input.value = displayName;
+            list.innerHTML = '';
+            map.setView([loc.latitude, loc.longitude], 10);
+            setMarker(index, loc.latitude, loc.longitude);
+            const allInputs = Array.from(document.querySelectorAll('.focusable-input'));
+            const currentIndex = allInputs.indexOf(input);
+            if (currentIndex + 1 < allInputs.length) { allInputs[currentIndex + 1].focus(); }
+          };
+          list.appendChild(li);
+        });
+      } else {
+        list.innerHTML = '<li>No locations found.</li>';
+      }
+    })
+    .catch(error => {
+      console.error("Error fetching location suggestions:", error);
+      list.innerHTML = '<li>Error fetching results.</li>';
+    });
+};
+
+// --- UI RENDERING & HELPERS ---
+function renderSingleMode() {
+  const inputsContainer = document.getElementById('inputs-container');
+  inputsContainer.innerHTML = generateLocationInputsHTML(0);
+  addEnterNavigation();
+}
+
+function renderCompareStep1() {
+  const inputsContainer = document.getElementById('inputs-container');
+  inputsContainer.innerHTML = generateLocationInputsHTML(0);
+  document.getElementById('add-location-btn-container').classList.remove('hidden');
+  addEnterNavigation();
+}
+
+function renderCompareStep2() {
+  const validationError = saveLocationData(0);
+  if (validationError) {
+      document.getElementById('error-container').textContent = `⚠️ For Location 1: ${validationError}`;
+      return;
+  }
+  document.getElementById('error-container').textContent = '';
+  compareStep = 2; 
+  const inputsContainer = document.getElementById('inputs-container');
+  inputsContainer.innerHTML = generateLocationInputsHTML(1);
+  document.getElementById('add-location-btn-container').classList.add('hidden');
+  addEnterNavigation();
+}
+
+function generateLocationInputsHTML(index) {
+  const locationTitle = currentMode === 'compare' ? `Location ${index + 1}` : 'Location';
+  return `<div class="input-grid">
+      <div class="input-group">
+        <label for="search-${index}">${locationTitle}</label>
+        <div class="search-wrapper">
+          <input type="text" id="search-${index}" placeholder="Type a name or paste a Google Maps URL" class="focusable-input" oninput="handleSearchInput(this, ${index})" />
+          <button onclick="searchLocations(${index})">Search</button>
+        </div>
+        <ul class="suggestions" id="suggestions-${index}"></ul>
+      </div>
+    </div>
+    <div class="input-grid">
+      <div class="input-group">
+        <label for="blade-${index}">🌀 Blade Radius (m)</label>
+        <input type="number" id="blade-${index}" placeholder="e.g., 50" class="focusable-input" />
+      </div>
+      <div class="input-group">
+        <label for="height-${index}">📏 Turbine Height (m)</label>
+        <input type="number" id="height-${index}" placeholder="e.g., 120" class="focusable-input" />
+      </div>
+    </div>`;
+}
+
+function displayResults(data) {
+  const container = document.getElementById('output-container');
+  document.getElementById('results-title').innerHTML = '📊 Results';
+  let html = '';
+
+  if (Array.isArray(data)) {
+    html += '<div class="results-grid">';
+    data.forEach((result, index) => {
+      html += `<div class="result-col"><h4>Location ${index + 1}</h4>${generateResultHTML(result)}</div>`;
+    });
+    html += '</div>';
+
+    if (data.length === 2) {
+      const p1 = data[0].estimated_power_W;
+      const p2 = data[1].estimated_power_W;
+      if (p1 > 0) {
+        const diff = ((p2 - p1) / p1) * 100;
+        const diffText = diff >= 0
+          ? `<span class="improvement">▲ ${diff.toFixed(1)}% improvement</span>`
+          : `<span class="decrement">▼ ${Math.abs(diff).toFixed(1)}% decrement</span>`;
+        html += `<div class="comparison-summary">
+                   <h4>Comparison Summary</h4>
+                   <div class="summary-item">
+                     <span>Power Output (Location 2 vs 1):</span>
+                     ${diffText}
+                   </div>
+                 </div>`;
+      }
+    }
+  } else {
+    html = `<div class="result-col">${generateResultHTML(data)}</div>`;
+  }
+  container.innerHTML = html;
+}
+
+function generateResultHTML(result) {
+  const powerInMW = (result.estimated_power_W / 1_000_000).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `<div class="result-item"><span class="result-key">Est. Power Output</span><span class="result-value">${powerInMW} MW</span></div>
+          <div class="result-item"><span class="result-key">Adjusted Wind Speed</span><span class="result-value">${result.adjusted_wind_speed_mps} m/s</span></div>
+          <div class="result-item"><span class="result-key">Air Density</span><span class="result-value">${result.air_density_kg_m3} kg/m³</span></div>
+          <div class="result-item"><span class="result-key">Weather Conditions</span><span class="result-value"></span></div>
+          <div class="result-item weather-group"><span class="result-key">Temperature</span><span class="result-value">${result.weather.temperature_C}°C</span></div>
+          <div class="result-item weather-group"><span class="result-key">Wind Speed (at 10m)</span><span class="result-value">${result.weather.wind_speed_mps} m/s</span></div>`;
+}
+
+function toggleLoading(isLoading) {
+  const btn = document.getElementById('estimate-btn');
+  const btnText = document.getElementById('btn-text');
+  if (isLoading) {
+    btn.disabled = true;
+    btnText.innerHTML = `<span class="loader"></span>Estimating...`;
+  } else {
+    btn.disabled = false;
+    btnText.innerHTML = 'Estimate Power';
+  }
+}
+
+function saveLocationData(index) {
+  const bladeInput = document.getElementById(`blade-${index}`);
+  const heightInput = document.getElementById(`height-${index}`);
+  
+  if (!bladeInput || !heightInput) {
+    return "Input fields are not found on the page.";
+  }
+
+  const blade = parseFloat(bladeInput.value);
+  const height = parseFloat(heightInput.value);
+  const marker = markers[index];
+
+  if (!marker) return "Please select a location on the map.";
+  if (isNaN(blade) || blade <= 0) return "Please provide a valid, positive number for Blade Radius.";
+  if (isNaN(height) || height <= 0) return "Please provide a valid, positive number for Turbine Height.";
+
+  locationData[index] = { blade, height };
+  return null; 
+}
+
+function handleSearchInput(input, index) {
+  const value = input.value;
+  if (value.startsWith('http')) {
+    resolveUrlAndSetMarker(value, input, index);
+  }
+}
+
+function addEnterNavigation() {
+  const inputs = Array.from(document.querySelectorAll('.focusable-input'));
+  inputs.forEach((input, index) => {
+    input.onkeydown = null;
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (input.id.startsWith('search-')) {
+          const locationIndex = parseInt(input.id.split('-')[1]);
+          searchLocations(locationIndex);
+          return;
+        }
+        const nextIndex = index + 1;
+        if (nextIndex < inputs.length) inputs[nextIndex].focus();
+        else {
+          const addLocationBtn = document.getElementById('add-location-btn');
+          if (currentMode === 'compare' && !addLocationBtn.parentElement.classList.contains('hidden')) {
+            addLocationBtn.click();
+          } else {
+            document.getElementById('estimate-btn').click();
+          }
+        }
+      }
+    });
+  });
+}
+
+function initMap() {
+  setTimeout(() => {
+    if (map) map.remove();
+    map = L.map('map').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors'
+    }).addTo(map);
+    markers = [];
+    map.on('click', function(e) {
+      const wrappedLatLng = e.latlng.wrap();
+      let index = (currentMode === 'single') ? 0 : compareStep - 1;
+      setMarker(index, wrappedLatLng.lat, wrappedLatLng.lng);
+    });
+  }, 100);
+}
+
+function setMarker(index, lat, lon) {
+  if (markers[index]) map.removeLayer(markers[index]);
+  const markerOptions = {};
+  if (currentMode === 'compare' && index === 1) {
+    markerOptions.icon = new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+    });
+  }
+  markers[index] = L.marker([lat, lon], markerOptions).addTo(map);
+  markers[index].lat = lat;
+  markers[index].lon = lon;
+}
+</script>
+</body>
+</html>
